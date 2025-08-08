@@ -1,0 +1,276 @@
+---
+const brandDir = '/brand';
+// Predefine your asset filenames for predictable ordering and labels
+// Group PNG + SVG per asset into a single card
+const groups = [
+  // Wordmarks first: Black, White, Blues
+  { key: 'wordmark-black', label: 'Wordmark — Black', bgClass: 'bg-light', png: 'wordmark-black.png', svg: 'wordmark-black.svg' },
+  { key: 'wordmark-white', label: 'Wordmark — White', bgClass: 'bg-dark', png: 'wordmark-white.png', svg: 'wordmark-white.svg' },
+  { key: 'wordmark-blue-glyph-dark', label: 'Wordmark — Blue Glyph, Dark Text', bgClass: 'bg-light', png: 'wordmark-blue-glyph-dark.png', svg: 'wordmark-blue-glyph-dark.svg' },
+  { key: 'wordmark-blue-glyph-light', label: 'Wordmark — Blue Glyph, Light Text', bgClass: 'bg-dark', png: 'wordmark-blue-glyph-light.png', svg: 'wordmark-blue-glyph-light.svg' },
+  // Icons afterwards: Black, White, Blue
+  { key: 'icon-black', label: 'Icon — Black', bgClass: 'bg-light', png: 'icon-black.png', svg: 'icon-black.svg' },
+  { key: 'icon-white', label: 'Icon — White', bgClass: 'bg-dark', png: 'icon-white.png', svg: 'icon-white.svg' },
+  { key: 'icon-blue', label: 'Icon — Blue', bgClass: 'bg-light', png: 'icon-blue.png', svg: 'icon-blue.svg' },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Podlink Brand Kit</title>
+    <meta name="description" content="Podlink brand assets and media kit." />
+    <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2"></script>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #0f131a;
+        --text: #e8eef6;
+        --muted: #aab4c0;
+        --accent: #3b82f6;
+        --accent-2: #60a5fa;
+        --border: #1b2330;
+        --card: #0d1117;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        color: var(--text);
+        background: radial-gradient(1000px 600px at 10% -10%, #12233a55, transparent),
+                    radial-gradient(1000px 600px at 90% -20%, #16335a55, transparent),
+                    var(--bg);
+      }
+      header {
+        padding: 32px 20px 12px;
+        text-align: center;
+      }
+      header h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        letter-spacing: 0.3px;
+      }
+      header p { margin: 0; color: var(--muted); }
+
+      main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        position: relative;
+        background: linear-gradient(180deg, #0d121a, #0b1016);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: visible; /* allow dropdowns to overflow card bounds */
+        box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+      }
+      .preview {
+        display: grid;
+        place-items: center;
+        height: 180px;
+        border-bottom: 1px solid var(--border);
+      }
+      .bg-light {
+        background: linear-gradient(180deg, #f5f7fb, #dfe7f5);
+      }
+      .bg-dark {
+        background: linear-gradient(180deg, #111827, #0b1220);
+      }
+      .bg-neutral {
+        background: linear-gradient(180deg, #e8edf6, #ced8e8);
+      }
+      .preview img {
+        max-width: 70%;
+        max-height: 120px;
+        object-fit: contain;
+        filter: drop-shadow(0 6px 16px rgba(0,0,0,0.35));
+      }
+      .body { padding: 12px; }
+      .label { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+      .filename { color: var(--muted); font-size: 12px; word-break: break-word; }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+
+        *:first-child {
+          border-bottom-left-radius:11px;
+        }
+        *:last-child {
+          border-bottom-right-radius:11px;
+        }
+      }
+      .btn {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 12px;
+        border: none;
+        background: none;
+        color: var(--text);
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+        width: 100%; /* equal widths inside action row */
+      }
+      .btn i { font-size: 18px; line-height: 0; }
+      .btn:hover { background: #121a2a; }
+      .download-menu { position: relative; flex: 1; }
+      .download-menu .download-trigger { width: 100%; }
+      .menu {
+        position: absolute;
+        top: 42px;
+        right: 0;
+        background: #0e1420;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 6px;
+        min-width: 140px;
+        display: none;
+        z-index: 999;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+      }
+      .menu.open { display: block; }
+      .menu .menu-item {
+        display: block;
+        padding: 8px 10px;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .menu .menu-item:hover { background: #121a2a; }
+      .toast {
+        position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+        background: #0e1420; border: 1px solid var(--border); color: var(--text);
+        padding: 10px 12px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none;
+        transition: opacity 160ms ease, transform 160ms ease;
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, -4px); }
+      footer { color: var(--muted); text-align: center; padding: 24px; font-size: 13px; }
+      .header-actions { margin-top: 16px; display: flex; gap: 10px; justify-content: center; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Podlink Brand Kit</h1>
+    </header>
+    <main>
+      <section class="grid">
+        {groups.map((g) => {
+          const pngUrl = `${brandDir}/${g.png}`;
+          const svgUrl = `${brandDir}/${g.svg}`;
+          const previewUrl = pngUrl; // Prefer PNG preview for consistency
+          return (
+            <article class="card">
+              <div class={`preview ${g.bgClass || 'bg-neutral'}`}>
+                <img src={previewUrl} alt={g.label} loading="lazy" />
+              </div>
+              <div class="actions">
+                <div class="download-menu">
+                  <button class="btn download-trigger" aria-haspopup="true" aria-expanded="false" aria-controls={`menu-${g.key}`} title="Download" aria-label="Download">
+                    <i class="ph ph-download-simple"></i>
+                  </button>
+                  <div class="menu" id={`menu-${g.key}`} role="menu" aria-hidden="true">
+                    <a class="menu-item" href={pngUrl} download role="menuitem">PNG</a>
+                    <a class="menu-item" href={svgUrl} download role="menuitem">SVG</a>
+                  </div>
+                </div>
+                <button class="btn" data-url={pngUrl} data-type="png" title="Copy Image (PNG)" aria-label="Copy Image (PNG)"><i class="ph ph-image"></i></button>
+                <button class="btn" data-url={svgUrl} data-type="svg" title="Copy SVG" aria-label="Copy SVG"><i class="ph ph-code"></i></button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const closeAllMenus = (exceptId) => {
+        document.querySelectorAll('.menu.open').forEach((menu) => {
+          if (exceptId && menu.id === exceptId) return;
+          menu.classList.remove('open');
+          const trigger = menu.parentElement?.querySelector('.download-trigger');
+          if (trigger) trigger.setAttribute('aria-expanded', 'false');
+          menu.setAttribute('aria-hidden', 'true');
+        });
+      };
+
+      const showToast = (message) => {
+        const t = document.getElementById('toast');
+        t.textContent = message;
+        t.classList.add('show');
+        clearTimeout(window.__toastTimer);
+        window.__toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+      };
+
+      document.addEventListener('click', async (e) => {
+        const button = e.target.closest('button');
+        // Handle download menu toggle first
+        if (button && button.classList.contains('download-trigger')) {
+          const controlsId = button.getAttribute('aria-controls');
+          const menu = controlsId ? document.getElementById(controlsId) : null;
+          if (!menu) return;
+          const willOpen = !menu.classList.contains('open');
+          closeAllMenus(controlsId);
+          if (willOpen) {
+            menu.classList.add('open');
+            button.setAttribute('aria-expanded', 'true');
+            menu.setAttribute('aria-hidden', 'false');
+          }
+          return;
+        }
+        // Close menus when clicking outside any download-menu
+        if (!e.target.closest('.download-menu')) {
+          closeAllMenus();
+        }
+        if (!button) return;
+        const url = button.dataset.url;
+        const type = button.dataset.type;
+        if (!url || !type) return;
+        const absoluteUrl = new URL(url, window.location.origin).href;
+        try {
+          if (type === 'svg') {
+            const res = await fetch(absoluteUrl, { cache: 'no-cache' });
+            const svgText = await res.text();
+            // Prefer writing raw text content of SVG
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(svgText);
+              showToast('SVG code copied');
+            } else {
+              showToast('Clipboard not available');
+            }
+          } else if (type === 'png') {
+            const res = await fetch(absoluteUrl, { cache: 'no-cache' });
+            const blob = await res.blob();
+            const ClipboardItemCtor = window.ClipboardItem || window.webkitClipboardItem;
+            if (navigator.clipboard && navigator.clipboard.write && ClipboardItemCtor) {
+              const item = new ClipboardItemCtor({ 'image/png': blob });
+              await navigator.clipboard.write([item]);
+              showToast('Image copied');
+            } else {
+              showToast('Image copy not supported');
+            }
+          }
+        } catch (err) {
+          showToast('Copy failed');
+        }
+      });
+
+      // Close open menu on Escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAllMenus();
+      });
+    </script>
+  </body>
+  </html>
+
+
