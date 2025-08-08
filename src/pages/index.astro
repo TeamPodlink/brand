@@ -95,8 +95,12 @@ const groups = [
       .filename { color: var(--muted); font-size: 12px; word-break: break-word; }
 
       .actions {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        display: flex;
+        flex-direction: row;
+
+        * {
+          flex: 1;
+        }
 
         *:first-child {
           border-bottom-left-radius:11px;
@@ -123,8 +127,15 @@ const groups = [
       }
       .btn i { font-size: 18px; line-height: 0; }
       .btn:hover { background: #121a2a; }
-      .download-menu { position: relative; flex: 1; }
-      .download-menu .download-trigger { width: 100%; }
+      .download-menu { 
+        position: relative; 
+        flex: 1; 
+        padding: 0 12px;
+        }
+      .download-menu .download-trigger { 
+        width: calc(100% + 24px);
+        margin: 0 -12px;
+         }
       .menu {
         position: absolute;
         top: 42px;
