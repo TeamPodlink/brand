@@ -166,6 +166,28 @@ const groups = [
         transition: opacity 160ms ease, transform 160ms ease;
       }
       .toast.show { opacity: 1; transform: translate(-50%, -4px); }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .overlay.show { display: flex; }
+      .overlay .backdrop {
+        position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+      }
+      .overlay .card {
+        position: relative; z-index: 1;
+        background: #0e1420; border: 1px solid var(--border); border-radius: 12px;
+        padding: 16px; width: min(560px, 92vw);
+      }
+      .overlay .card h2 { margin: 0 0 8px; font-size: 16px; }
+      .overlay .card p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+      .overlay .card .img-wrap { display: grid; place-items: center; background: #0b1220; border-radius: 8px; padding: 12px; }
+      .overlay .card img { max-width: 100%; height: auto; }
+      .overlay .close { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--text); cursor: pointer; }
       footer { color: var(--muted); text-align: center; padding: 24px; font-size: 13px; }
       .header-actions { margin-top: 16px; display: flex; gap: 10px; justify-content: center; }
       [hidden] { display: none !important; }
@@ -206,6 +228,15 @@ const groups = [
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="overlay" class="overlay" aria-hidden="true">
+      <div class="backdrop" data-overlay-close></div>
+      <div class="card" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+        <button class="close" title="Close" aria-label="Close" data-overlay-close><i class="ph ph-x"></i></button>
+        <h2 id="overlay-title">Copy image</h2>
+        <p>Press Command+C to copy the image. Press Escape to close.</p>
+        <div class="img-wrap"><img id="overlay-img" alt="Asset preview" /></div>
+      </div>
+    </div>
 
     <script>
       const closeAllMenus = (exceptId) => {
@@ -225,6 +256,65 @@ const groups = [
         clearTimeout(window.__toastTimer);
         window.__toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
       };
+      const showOverlayWithImage = (objectUrl) => {
+        const overlay = document.getElementById('overlay');
+        const img = document.getElementById('overlay-img');
+        img.src = objectUrl;
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+      };
+      const hideOverlay = () => {
+        const overlay = document.getElementById('overlay');
+        const img = document.getElementById('overlay-img');
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+        if (img && img.src.startsWith('blob:')) {
+          try { URL.revokeObjectURL(img.src); } catch {}
+        }
+        img.src = '';
+      };
+
+      // Prefetch SVG text into memory so copying can happen synchronously on click (helps Safari)
+      window.__svgCache = window.__svgCache || {};
+      (() => {
+        const preload = () => {
+          const buttons = document.querySelectorAll('button[data-type="svg"][data-url]');
+          const urls = Array.from(new Set(Array.from(buttons).map((b) => new URL(b.dataset.url, window.location.origin).href)));
+          urls.forEach((url) => {
+            if (window.__svgCache[url]) return;
+            fetch(url, { cache: 'no-cache' })
+              .then((r) => r.text())
+              .then((txt) => { window.__svgCache[url] = txt; })
+              .catch(() => {});
+          });
+        };
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', preload);
+        } else {
+          preload();
+        }
+      })();
+
+      // Prefetch PNG blobs for possible Safari fallback
+      window.__pngCache = window.__pngCache || {};
+      (() => {
+        const preload = () => {
+          const buttons = document.querySelectorAll('button[data-type="png"][data-url]');
+          const urls = Array.from(new Set(Array.from(buttons).map((b) => new URL(b.dataset.url, window.location.origin).href)));
+          urls.forEach((url) => {
+            if (window.__pngCache[url]) return;
+            fetch(url, { cache: 'no-cache' })
+              .then((r) => r.blob())
+              .then((blob) => { window.__pngCache[url] = blob; })
+              .catch(() => {});
+          });
+        };
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', preload);
+        } else {
+          preload();
+        }
+      })();
 
       document.addEventListener('click', async (e) => {
         const button = e.target.closest('button');
@@ -252,6 +342,11 @@ const groups = [
         if (!e.target.closest('.download-menu')) {
           closeAllMenus();
         }
+        // Handle overlay close clicks
+        if (e.target.closest('[data-overlay-close]')) {
+          hideOverlay();
+          return;
+        }
         if (!button) return;
         const url = button.dataset.url;
         const type = button.dataset.type;
@@ -259,23 +354,86 @@ const groups = [
         const absoluteUrl = new URL(url, window.location.origin).href;
         try {
           if (type === 'svg') {
-            const res = await fetch(absoluteUrl, { cache: 'no-cache' });
-            const svgText = await res.text();
-            // Prefer writing raw text content of SVG
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              await navigator.clipboard.writeText(svgText);
-              showToast('SVG code copied');
-            } else {
-              showToast('Clipboard not available');
+            const ua = navigator.userAgent || '';
+            const isSafari = /safari/i.test(ua) && !/chrome|chromium|crios|android/i.test(ua);
+            const cached = window.__svgCache ? window.__svgCache[absoluteUrl] : undefined;
+            if (isSafari && !cached) {
+              // Avoid async fetch during user gesture in Safari; prime the cache and ask user to retry
+              fetch(absoluteUrl, { cache: 'no-cache' })
+                .then((r) => r.text())
+                .then((txt) => { (window.__svgCache || (window.__svgCache = {}))[absoluteUrl] = txt; })
+                .catch(() => {});
+              showToast('Preparing SVG… tap again to copy');
+              return;
+            }
+            const svgText = cached ?? (await (await fetch(absoluteUrl, { cache: 'no-cache' })).text());
+            // Try modern async clipboard first
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+              try {
+                await navigator.clipboard.writeText(svgText);
+                showToast('SVG code copied');
+                return;
+              } catch {}
+            }
+            // Fallback for Safari and older browsers: execCommand('copy')
+            const ta = document.createElement('textarea');
+            ta.value = svgText;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            ta.style.pointerEvents = 'none';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+              const ok = document.execCommand('copy');
+              if (ok) {
+                showToast('SVG code copied');
+              } else {
+                throw new Error('execCommand failed');
+              }
+            } finally {
+              document.body.removeChild(ta);
             }
           } else if (type === 'png') {
-            const res = await fetch(absoluteUrl, { cache: 'no-cache' });
-            const blob = await res.blob();
             const ClipboardItemCtor = window.ClipboardItem || window.webkitClipboardItem;
+            const ua = navigator.userAgent || '';
+            const isSafari = /safari/i.test(ua) && !/chrome|chromium|crios|android/i.test(ua);
+            const blob = window.__pngCache?.[absoluteUrl] ?? (await (await fetch(absoluteUrl, { cache: 'no-cache' })).blob());
             if (navigator.clipboard && navigator.clipboard.write && ClipboardItemCtor) {
               const item = new ClipboardItemCtor({ 'image/png': blob });
               await navigator.clipboard.write([item]);
               showToast('Image copied');
+              return;
+            } else if (isSafari && typeof document.execCommand === 'function') {
+              // Safari attempt: select an offscreen contentEditable image and execCommand('copy')
+              const urlForImg = URL.createObjectURL(blob);
+              const wrapper = document.createElement('div');
+              wrapper.contentEditable = 'true';
+              wrapper.style.position = 'fixed';
+              wrapper.style.left = '-9999px';
+              wrapper.style.top = '0';
+              const img = document.createElement('img');
+              img.src = urlForImg;
+              wrapper.appendChild(img);
+              document.body.appendChild(wrapper);
+              const range = document.createRange();
+              range.selectNodeContents(wrapper);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+              const ok = document.execCommand('copy');
+              sel.removeAllRanges();
+              document.body.removeChild(wrapper);
+              URL.revokeObjectURL(urlForImg);
+              if (ok) {
+                showToast('Image copied');
+                return;
+              }
+              // As last resort, show overlay and instruct manual Cmd+C
+              const objUrl = URL.createObjectURL(blob);
+              showOverlayWithImage(objUrl);
+              return;
             } else {
               showToast('Image copy not supported');
             }
@@ -287,9 +445,17 @@ const groups = [
       // Feature detection: hide image copy controls if unsupported
       (() => {
         try {
-          const canClipboardWrite = !!(navigator.clipboard && navigator.clipboard.write);
-          const hasClipboardItem = typeof window.ClipboardItem !== 'undefined' || typeof window.webkitClipboardItem !== 'undefined';
-          const supported = canClipboardWrite && hasClipboardItem;
+          const ua = navigator.userAgent || '';
+          const isSafari = /safari/i.test(ua) && !/chrome|chromium|crios|android/i.test(ua);
+          const hasWrite = !!(navigator.clipboard && typeof navigator.clipboard.write === 'function');
+          const ClipboardItemCtor = window.ClipboardItem || window.webkitClipboardItem;
+          const supportsType = typeof ClipboardItemCtor?.supports === 'function'
+            ? ClipboardItemCtor.supports('image/png')
+            : !!ClipboardItemCtor;
+          const isSecure = !!window.isSecureContext;
+          const supportedViaClipboard = hasWrite && supportsType && isSecure;
+          const supportedViaExec = isSafari && typeof document.queryCommandSupported === 'function' && document.queryCommandSupported('copy');
+          const supported = supportedViaClipboard || supportedViaExec;
           if (!supported) {
             document.querySelectorAll('[data-requires="clipboard-image"]').forEach((el) => {
               el.setAttribute('hidden', 'true');
@@ -300,7 +466,7 @@ const groups = [
 
       // Close open menu on Escape
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeAllMenus();
+        if (e.key === 'Escape') { closeAllMenus(); hideOverlay(); }
       });
     </script>
   </body>
